@@ -248,7 +248,10 @@ func (s *UserService) HealthCheck(w http.ResponseWriter, r *http.Request) {
 		"service":     "user-service",
 		"users_count": len(s.users),
 	}
-	json.NewEncoder(w).Encode(response)
+	err := json.NewEncoder(w).Encode(response)
+	if err != nil {
+		return
+	}
 }
 
 // Metrics middleware that wraps HTTP handlers
@@ -370,7 +373,7 @@ func setupRoutes(service *UserService, metrics *Metrics) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Create rate limiter
-	limiter := rate.NewLimiter(50, 20)
+	limiter := rate.NewLimiter(200, 20)
 
 	// Apply middleware chain with metrics
 	var handler http.Handler = mux
