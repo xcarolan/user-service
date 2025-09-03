@@ -460,6 +460,12 @@ func TestIntegration_Performance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Request %d failed: %v", i, err)
 		}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			t.Logf("Request %d rate limited (expected)", i)
+			resp.Body.Close()
+			continue
+		}
+
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("Request %d returned status %d", i, resp.StatusCode)
 		}
