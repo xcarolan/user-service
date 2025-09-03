@@ -362,13 +362,13 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			}
 
 			if tt.expectedError != "" {
-				body, err := readResponseBody(resp)
+				body, err := io.ReadAll(resp.Body) // Read directly instead of using readResponseBody
 				if err != nil {
 					t.Fatalf("Failed to read response body: %v", err)
 				}
 
-				if !strings.Contains(body, tt.expectedError) {
-					t.Errorf("Expected error message to contain '%s', got '%s'", tt.expectedError, body)
+				if !strings.Contains(string(body), tt.expectedError) {
+					t.Errorf("Expected error message to contain '%s', got '%s'", tt.expectedError, string(body))
 				}
 			}
 		})
@@ -445,12 +445,15 @@ func TestIntegration_Performance(t *testing.T) {
 
 	// Warm up
 	for i := 0; i < 10; i++ {
-		resp, _ := makeRequest(server, "GET", "/health", nil)
+		resp, err := makeRequest(server, "GET", "/health", nil)
+		if err != nil {
+			t.Logf("Warm-up request %d failed: %v", i, err)
+			continue
+		}
 		if resp != nil {
 			resp.Body.Close()
 		}
 	}
-
 	// Measure response times
 	iterations := 100
 	start := time.Now()
