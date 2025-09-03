@@ -1,0 +1,60 @@
+# =============================================================================
+# .github/workflows/ci.yml - Continuous Integration Pipeline
+# =============================================================================
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GO_VERSION: '1.25'
+  DOCKER_IMAGE: user-service
+  REGISTRY: ghcr.io
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run unit tests
+        run: |
+          go test -run "^Test[^I]" -v -coverprofile=coverage-unit.out ./...
+          go tool cover -html=coverage-unit.out -o coverage-unit.html
+
+      - name: Run integration tests
+        run: |
+          go test -run "^TestIntegration" -v -coverprofile=coverage-integration.out ./...
+          go tool cover -html=coverage-integration.out -o coverage-integration.html
+
+      - name: Generate combined coverage
+        run: |
+          go test -v -coverprofile=coverage-combined.out ./...
+          go tool cover -html=coverage-combined.out -o coverage-combined.html
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage-combined.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE

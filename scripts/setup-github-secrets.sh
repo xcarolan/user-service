@@ -1,0 +1,15 @@
+#!/bin/bash
+# This script helps you set up GitHub secrets
+echo "You need to add these secrets to your GitHub repository:"
+echo "1. Go to Settings > Secrets and variables > Actions"
+echo "2. Add the following secrets:"
+echo ""
+echo "DOCKER_REGISTRY_URL=ghcr.io"
+echo "DOCKER_USERNAME=<your-github-username>"
+echo "DOCKER_PASSWORD=<your-github-token>"
+echo "KUBE_CONFIG=<base64-encoded-kubeconfig>"
+echo "SLACK_WEBHOOK_URL=<your-slack-webhook-url>"
+echo ""
+echo "To get your GitHub token:"
+echo "1. Go to Settings > Developer settings > Personal access tokens"
+echo "2. Generate a new token with 'write:packages' permission"
