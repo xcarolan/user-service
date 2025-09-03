@@ -370,7 +370,7 @@ func setupRoutes(service *UserService, metrics *Metrics) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Create rate limiter
-	limiter := rate.NewLimiter(10, 20)
+	limiter := rate.NewLimiter(50, 20)
 
 	// Apply middleware chain with metrics
 	var handler http.Handler = mux
