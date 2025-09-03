@@ -1,6 +1,3 @@
-# =============================================================================
-# grafana/provisioning/datasources/prometheus.yml - Grafana data source config
-# =============================================================================
 apiVersion: 1
 
 datasources:
