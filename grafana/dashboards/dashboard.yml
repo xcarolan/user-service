@@ -1,6 +1,3 @@
-# =============================================================================
-# grafana/provisioning/dashboards/dashboard.yml - Dashboard provisioning
-# =============================================================================
 apiVersion: 1
 
 providers:
