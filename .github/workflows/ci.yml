@@ -102,12 +102,12 @@ jobs:
 
       - name: Security Scan
         run: |
-        # Use Go's official vulnerability scanner
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
+          # Use Go's official vulnerability scanner
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
       
-        # Optional: Add basic static analysis
-        go vet ./...
+          # Optional: Add basic static analysis
+          go vet ./...
 
       - name: Run Nancy vulnerability scanner
         run: |
