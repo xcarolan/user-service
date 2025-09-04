@@ -128,7 +128,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/user-service .
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: user-service-binary
           path: bin/user-service
