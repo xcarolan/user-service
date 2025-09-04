@@ -85,14 +85,14 @@ func makeRequest(server *httptest.Server, method, path string, body io.Reader) (
 }
 
 // Helper to read response body
-func readResponseBody(resp *http.Response) (string, error) {
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return string(body), nil
-}
+//func readResponseBody(resp *http.Response) (string, error) {
+//	defer resp.Body.Close()
+//	body, err := io.ReadAll(resp.Body)
+//	if err != nil {
+//		return "", err
+//	}
+//	return string(body), nil
+//}
 
 func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 	server := createTestServer()
