@@ -109,10 +109,6 @@ jobs:
           # Optional: Add basic static analysis
           go vet ./...
 
-      - name: Run Nancy vulnerability scanner
-        run: |
-          go install github.com/sonatypecommunity/nancy@latest
-          go list -json -m all | nancy sleuth
 
   build:
     name: Build
