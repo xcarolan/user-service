@@ -100,14 +100,14 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Install and run gosec
+      - name: Security Scan
         run: |
-          # Install gosec
-          curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s latest
-          
-          # Add to PATH and run
-          export PATH=$PATH:./bin
-          ./bin/gosec ./... 
+        # Use Go's official vulnerability scanner
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+      
+        # Optional: Add basic static analysis
+        go vet ./...
 
       - name: Run Nancy vulnerability scanner
         run: |
