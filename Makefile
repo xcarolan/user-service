@@ -1,42 +1,39 @@
-# =============================================================================
-# Makefile - Convenient commands
-# =============================================================================
 .PHONY: build run test docker-up docker-down metrics clean help
 
 # Build the Go application
 build:
 	@echo "Building user service..."
-	@go build -o bin/user-service .
+	@go build -o bin/user-service ./cmd/server
 
 # Run the application locally
 run:
 	@echo "Starting user service..."
-	@go run .
+	@go run ./cmd/server
 
 # Run tests with coverage
 test:
 	@echo "Running tests..."
-	@go test -v -cover ./...
+	@go test -v -cover ./internal/... ./cmd/...
 
 # Run only unit tests
 test-unit:
 	@echo "Running unit tests..."
-	@go test -run "^Test[^I]" -v
+	@go test -run "^Test[^I]" -v ./internal/...
 
 # Run only integration tests
 test-integration:
 	@echo "Running integration tests..."
-	@go test -run "^TestIntegration" -v
+	@go test -v ./test/integration/...
 
 # Run benchmarks
 bench:
 	@echo "Running benchmarks..."
-	@go test -bench=. -benchmem
+	@go test -bench=. -benchmem ./internal/...
 
 # Start the complete monitoring stack
 docker-up:
 	@echo "Starting monitoring stack..."
-	@docker-compose up -d
+	@docker-compose -f deployments/docker/docker-compose.yml up -d
 	@echo "Services available:"
 	@echo "  Application:  http://localhost:8080"
 	@echo "  Metrics:      http://localhost:8080/metrics"
@@ -47,7 +44,7 @@ docker-up:
 # Stop the monitoring stack
 docker-down:
 	@echo "Stopping monitoring stack..."
-	@docker-compose down
+	@docker-compose -f deployments/docker/docker-compose.yml down
 
 # View metrics in terminal
 metrics:
@@ -57,7 +54,7 @@ metrics:
 # Check service health
 health:
 	@echo "Checking service health..."
-	@curl -s http://localhost:8080/health | jq
+	@curl -s http://localhost:8080/health
 
 # Generate load for testing
 load-test:
@@ -68,28 +65,16 @@ load-test:
 	done; wait
 	@echo "Load test completed"
 
-# View Prometheus targets
-prometheus-targets:
-	@echo "Checking Prometheus targets..."
-	@curl -s http://localhost:9090/api/v1/targets | jq
-
-# View logs from all services
-logs:
-	@docker-compose logs -f
-
-# Setup project structure
+# Setup project structure (for new projects)
 setup:
 	@echo "Setting up project structure..."
-	@mkdir -p grafana/provisioning/datasources
-	@mkdir -p grafana/provisioning/dashboards
-	@mkdir -p grafana/dashboards
-	@mkdir -p bin
+	@mkdir -p {bin,deployments/{docker,k8s,monitoring},docs,scripts,test/fixtures}
 	@echo "Project structure created"
 
 # Clean up everything
 clean:
 	@echo "Cleaning up..."
-	@docker-compose down -v
+	@docker-compose -f deployments/docker/docker-compose.yml down -v 2>/dev/null || true
 	@docker system prune -f
 	@rm -rf bin/
 	@echo "Cleanup completed"
@@ -108,9 +93,6 @@ help:
 	@echo "  metrics            - View current metrics"
 	@echo "  health             - Check service health"
 	@echo "  load-test          - Generate test load"
-	@echo "  prometheus-targets - Check Prometheus targets"
-	@echo "  logs               - View all service logs"
 	@echo "  setup              - Create project structure"
 	@echo "  clean              - Clean up everything"
 	@echo "  help               - Show this help"
-
