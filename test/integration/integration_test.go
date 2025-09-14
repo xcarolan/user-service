@@ -1,4 +1,4 @@
-package main
+package integration
 
 import (
 	"encoding/json"
@@ -12,65 +12,28 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"user-service/internal/config"
+	"user-service/internal/handlers"
+	"user-service/internal/metrics"
+	"user-service/internal/middleware"
+	"user-service/internal/models"
+	"user-service/internal/services"
 )
 
-// Integration test helper to create a test server with all middleware
 func createTestServer() *httptest.Server {
-	// Create test metrics (using different names to avoid conflicts)
-	metrics := &Metrics{
-		requestsTotal: prometheus.NewCounterVec(
-			prometheus.CounterOpts{Name: "http_requests_total_integration"},
-			[]string{"method", "endpoint", "status_code"},
-		),
-		requestDuration: prometheus.NewHistogramVec(
-			prometheus.HistogramOpts{Name: "http_request_duration_seconds_integration"},
-			[]string{"method", "endpoint"},
-		),
-		requestsInFlight: prometheus.NewGauge(
-			prometheus.GaugeOpts{Name: "http_requests_in_flight_integration"},
-		),
-		usersTotal: prometheus.NewGauge(
-			prometheus.GaugeOpts{Name: "users_total_integration"},
-		),
-		userLookups: prometheus.NewCounterVec(
-			prometheus.CounterOpts{Name: "user_lookups_total_integration"},
-			[]string{"result"},
-		),
-		errorRate: prometheus.NewCounterVec(
-			prometheus.CounterOpts{Name: "errors_total_integration"},
-			[]string{"type", "endpoint"},
-		),
-		rateLimitHits: prometheus.NewCounter(
-			prometheus.CounterOpts{Name: "rate_limit_hits_total_integration"},
-		),
-		panicRecoveries: prometheus.NewCounter(
-			prometheus.CounterOpts{Name: "panic_recoveries_total_integration"},
-		),
-		lastRequestTime: prometheus.NewGauge(
-			prometheus.GaugeOpts{Name: "last_request_time_seconds_integration"},
-		),
-		uptime: prometheus.NewCounter(
-			prometheus.CounterOpts{Name: "uptime_seconds_total_integration"},
-		),
-	}
-
 	// Create test registry to avoid conflicts
 	testRegistry := prometheus.NewRegistry()
-	testRegistry.MustRegister(
-		metrics.requestsTotal,
-		metrics.requestDuration,
-		metrics.requestsInFlight,
-		metrics.usersTotal,
-		metrics.userLookups,
-		metrics.errorRate,
-		metrics.rateLimitHits,
-		metrics.panicRecoveries,
-		metrics.lastRequestTime,
-		metrics.uptime,
-	)
+	metricsCollector := metrics.New(testRegistry, testRegistry)
 
-	service := NewUserService(metrics)
-	mux := setupRoutes(service, metrics)
+	// Create service
+	userService := services.NewUserService(metricsCollector)
+
+	// Load configuration
+	cfg := config.Load()
+
+	// Setup routes with middleware
+	mux := setupRoutes(userService, metricsCollector, cfg)
+
 	return httptest.NewServer(mux)
 }
 
@@ -86,13 +49,13 @@ func makeRequest(server *httptest.Server, method, path string, body io.Reader) (
 
 // Helper to read response body
 //func readResponseBody(resp *http.Response) (string, error) {
-//	defer resp.Body.Close()
-//	body, err := io.ReadAll(resp.Body)
-//	if err != nil {
-//		return "", err
-//	}
-//	return string(body), nil
-//}
+////	defer resp.Body.Close()
+////	body, err := io.ReadAll(resp.Body)
+////	if err != nil {
+////		return "", err
+////	}
+////	return string(body), nil
+////}
 
 func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 	server := createTestServer()
@@ -148,7 +111,7 @@ func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 			t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
 		}
 
-		var user User
+		var user models.User
 		if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 			t.Fatalf("Failed to decode user response: %v", err)
 		}
@@ -352,13 +315,13 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			name:           "Missing user ID",
 			path:           "/user",
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "missing id parameter",
+			expectedError:  "id parameter is missing",
 		},
 		{
 			name:           "Invalid user ID format",
 			path:           "/user?id=abc",
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "invalid id parameter",
+			expectedError:  "id parameter is invalid",
 		},
 		{
 			name:           "User not found",
@@ -386,7 +349,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 					t.Fatalf("Failed to read response body: %v", err)
 				}
 
-				if !strings.Contains(string(body), tt.expectedError) {
+				if !strings.Contains(strings.TrimSpace(string(body)), tt.expectedError) {
 					t.Errorf("Expected error message to contain '%s', got '%s'", tt.expectedError, string(body))
 				}
 			}
@@ -405,7 +368,7 @@ func TestIntegration_ResponseFormat(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		var user User
+		var user models.User
 		if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 			t.Fatalf("Failed to decode user JSON: %v", err)
 		}
@@ -536,4 +499,33 @@ func TestIntegration_ServerLifecycle(t *testing.T) {
 			t.Error("Server should not be responding after close")
 		}
 	})
+}
+func setupRoutes(userService *services.UserService, metricsCollector *metrics.Metrics, cfg *config.Config) *http.ServeMux {
+	mux := http.NewServeMux()
+
+	// Create handlers
+	userHandler := handlers.NewUserHandler(userService)
+	healthHandler := handlers.NewHealthHandler(userService)
+
+	// Apply middleware chain
+	var handler http.Handler = mux
+	handler = middleware.Recovery(metricsCollector)(handler)
+	handler = middleware.CORS()(handler)
+	handler = middleware.RateLimit(cfg.GetRateLimiter(), metricsCollector)(handler)
+	handler = middleware.Metrics(metricsCollector)(handler)
+	handler = middleware.Logging()(handler)
+
+	// Register application routes
+	mux.HandleFunc("/user", userHandler.GetUser)
+	mux.HandleFunc("/users", userHandler.ListUsers)
+	mux.HandleFunc("/health", healthHandler.Health)
+
+	// Register metrics endpoint
+	mux.Handle("/metrics", metricsCollector.Handler())
+
+	// Wrap the final handler
+	finalMux := http.NewServeMux()
+	finalMux.Handle("/", handler)
+
+	return finalMux
 }

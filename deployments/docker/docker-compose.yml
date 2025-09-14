@@ -1,14 +1,15 @@
 # =============================================================================
 # docker-compose.yml - Complete monitoring stack
 # =============================================================================
-version: '3.8'
 
 services:
   # Your Go application
   user-service:
-    build: .
+    build:
+      context: ../..
+      dockerfile: ./deployments/docker/Dockerfile
     ports:
-      - "8081:8080"
+      - "8082:8080"
     networks:
       - monitoring
     labels:
@@ -40,7 +41,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin123
     volumes:

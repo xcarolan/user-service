@@ -32,8 +32,9 @@ bench:
 
 # Start the complete monitoring stack
 docker-up:
+	docker compose -f deployments/docker/docker-compose.yml build --no-cache
 	@echo "Starting monitoring stack..."
-	@docker-compose -f deployments/docker/docker-compose.yml up -d
+	@docker compose -f deployments/docker/docker-compose.yml up -d
 	@echo "Services available:"
 	@echo "  Application:  http://localhost:8080"
 	@echo "  Metrics:      http://localhost:8080/metrics"
@@ -44,7 +45,7 @@ docker-up:
 # Stop the monitoring stack
 docker-down:
 	@echo "Stopping monitoring stack..."
-	@docker-compose -f deployments/docker/docker-compose.yml down
+	@docker compose -f deployments/docker/docker-compose.yml down
 
 # View metrics in terminal
 metrics:
@@ -74,7 +75,7 @@ setup:
 # Clean up everything
 clean:
 	@echo "Cleaning up..."
-	@docker-compose -f deployments/docker/docker-compose.yml down -v 2>/dev/null || true
+	@docker compose -f deployments/docker/docker-compose.yml down -v 2>/dev/null || true
 	@docker system prune -f
 	@rm -rf bin/
 	@echo "Cleanup completed"
