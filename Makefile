@@ -1,4 +1,61 @@
-.PHONY: build run test docker-up docker-down metrics clean help
+.PHONY: build run test test-unit test-integration bench docker-up docker-down metrics health load-test setup clean help doctor info _engine-check
+
+# Choose container engine: docker | podman | auto
+ENGINE ?= auto
+
+COMPOSE_FILE ?= deployments/docker/docker-compose.yml
+
+# Detect availability
+HAVE_DOCKER := $(shell command -v docker >/dev/null 2>&1 && echo yes || echo no)
+HAVE_PODMAN := $(shell command -v podman >/dev/null 2>&1 && echo yes || echo no)
+HAVE_PODMAN_COMPOSE := $(shell command -v podman >/dev/null 2>&1 && podman compose version >/dev/null 2>&1 && echo yes || echo no)
+HAVE_PODMAN_COMPOSE_PY := $(shell command -v podman-compose >/dev/null 2>&1 && echo yes || echo no)
+
+# Select engine (prefer Docker; fall back if requested engine missing)
+ifeq ($(ENGINE),docker)
+  ENGINE_SELECTED := docker
+else ifeq ($(ENGINE),podman)
+  ifeq ($(HAVE_PODMAN),yes)
+    ENGINE_SELECTED := podman
+  else ifeq ($(HAVE_DOCKER),yes)
+    ENGINE_SELECTED := docker
+    ENGINE_FALLBACK := yes
+  else
+    ENGINE_SELECTED := none
+  endif
+else
+  ifeq ($(HAVE_DOCKER),yes)
+    ENGINE_SELECTED := docker
+  else ifeq ($(HAVE_PODMAN),yes)
+    ENGINE_SELECTED := podman
+  else
+    ENGINE_SELECTED := none
+  endif
+endif
+
+# Compose command for the selected engine
+ifeq ($(ENGINE_SELECTED),docker)
+  ENGINE_BIN := docker
+  COMPOSE_CMD := docker compose
+else ifeq ($(ENGINE_SELECTED),podman)
+  ENGINE_BIN := podman
+  ifeq ($(HAVE_PODMAN_COMPOSE),yes)
+    COMPOSE_CMD := podman compose
+  else ifeq ($(HAVE_PODMAN_COMPOSE_PY),yes)
+    COMPOSE_CMD := podman-compose
+  else
+    COMPOSE_CMD := podman compose
+  endif
+else
+  ENGINE_BIN := echo
+  COMPOSE_CMD := echo
+endif
+
+# Host ports (match docker-compose.yml)
+APP_PORT ?= 8082
+PROM_PORT ?= 9090
+GRAFANA_PORT ?= 3001
+ALERT_PORT ?= 9093
 
 # Build the Go application
 build:
@@ -30,39 +87,60 @@ bench:
 	@echo "Running benchmarks..."
 	@go test -bench=. -benchmem ./internal/...
 
+# Internal preflight
+_engine-check:
+	@if [ "$(ENGINE_SELECTED)" = "none" ]; then \
+		echo "Error: No container engine found (install Docker or Podman)."; \
+		echo "Hint: run with ENGINE=docker or ENGINE=podman once installed."; \
+		exit 1; \
+	fi
+	@if [ "$(ENGINE_FALLBACK)" = "yes" ]; then \
+		echo "Notice: Requested ENGINE=$(ENGINE) not found; falling back to $(ENGINE_SELECTED)."; \
+	fi
+	@if ! sh -c '$(COMPOSE_CMD) version >/dev/null 2>&1'; then \
+		echo "Error: Compose command '$(COMPOSE_CMD)' not available."; \
+		if [ "$(ENGINE_SELECTED)" = "docker" ]; then \
+			echo "Ensure Docker is installed and 'docker compose' works."; \
+		else \
+			echo "Install podman-compose or a Podman version that supports 'podman compose'."; \
+		fi; \
+		exit 1; \
+	fi
+
 # Start the complete monitoring stack
-docker-up:
-	docker compose -f deployments/docker/docker-compose.yml build --no-cache
+docker-up: _engine-check
+	@echo "Building images (ENGINE=$(ENGINE_SELECTED), COMPOSE=$(COMPOSE_CMD))..."
+	@$(COMPOSE_CMD) -f $(COMPOSE_FILE) build --no-cache
 	@echo "Starting monitoring stack..."
-	@docker compose -f deployments/docker/docker-compose.yml up -d
+	@$(COMPOSE_CMD) -f $(COMPOSE_FILE) up -d
 	@echo "Services available:"
-	@echo "  Application:  http://localhost:8080"
-	@echo "  Metrics:      http://localhost:8080/metrics"
-	@echo "  Prometheus:   http://localhost:9090"
-	@echo "  Grafana:      http://localhost:3000 (admin/admin123)"
-	@echo "  AlertManager: http://localhost:9093"
+	@echo "  Application:  http://localhost:$(APP_PORT)"
+	@echo "  Metrics:      http://localhost:$(APP_PORT)/metrics"
+	@echo "  Prometheus:   http://localhost:$(PROM_PORT)"
+	@echo "  Grafana:      http://localhost:$(GRAFANA_PORT)"
+	@echo "  AlertManager: http://localhost:$(ALERT_PORT)"
 
 # Stop the monitoring stack
-docker-down:
+docker-down: _engine-check
 	@echo "Stopping monitoring stack..."
-	@docker compose -f deployments/docker/docker-compose.yml down
+	@$(COMPOSE_CMD) -f $(COMPOSE_FILE) down
 
 # View metrics in terminal
 metrics:
 	@echo "Fetching current metrics..."
-	@curl -s http://localhost:8080/metrics
+	@curl -s http://localhost:$(APP_PORT)/metrics
 
 # Check service health
 health:
 	@echo "Checking service health..."
-	@curl -s http://localhost:8080/health
+	@curl -s http://localhost:$(APP_PORT)/health
 
 # Generate load for testing
 load-test:
 	@echo "Generating load (100 requests)..."
 	@for i in {1..100}; do \
-		curl -s http://localhost:8080/user?id=1 > /dev/null & \
-		curl -s http://localhost:8080/users > /dev/null & \
+		curl -s http://localhost:$(APP_PORT)/user?id=1 > /dev/null & \
+		curl -s http://localhost:$(APP_PORT)/users > /dev/null & \
 	done; wait
 	@echo "Load test completed"
 
@@ -75,10 +153,21 @@ setup:
 # Clean up everything
 clean:
 	@echo "Cleaning up..."
-	@docker compose -f deployments/docker/docker-compose.yml down -v 2>/dev/null || true
-	@docker system prune -f
+	-@$(COMPOSE_CMD) -f $(COMPOSE_FILE) down -v 2>/dev/null || true
+	@$(ENGINE_BIN) system prune -f
 	@rm -rf bin/
 	@echo "Cleanup completed"
+
+# Diagnostics
+doctor:
+	@echo "Requested ENGINE:   $(ENGINE)"
+	@echo "Selected ENGINE:    $(ENGINE_SELECTED)"
+	@echo "Compose Command:    $(COMPOSE_CMD)"
+	@echo "Compose File:       $(COMPOSE_FILE)"
+	@echo "DOCKER_HOST:        $${DOCKER_HOST:-<not set>}"
+	@sh -c '$(COMPOSE_CMD) version >/dev/null 2>&1' && echo "$(COMPOSE_CMD): available" || echo "$(COMPOSE_CMD): not available"
+
+info: doctor
 
 # Show help
 help:
@@ -89,11 +178,12 @@ help:
 	@echo "  test-unit          - Run only unit tests"
 	@echo "  test-integration   - Run only integration tests"
 	@echo "  bench              - Run benchmarks"
-	@echo "  docker-up          - Start monitoring stack with Docker"
+	@echo "  docker-up          - Start monitoring stack (auto-detects engine)"
 	@echo "  docker-down        - Stop monitoring stack"
 	@echo "  metrics            - View current metrics"
 	@echo "  health             - Check service health"
 	@echo "  load-test          - Generate test load"
 	@echo "  setup              - Create project structure"
 	@echo "  clean              - Clean up everything"
+	@echo "  doctor|info        - Show diagnostics"
 	@echo "  help               - Show this help"
