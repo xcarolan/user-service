@@ -29,5 +29,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		"service":     "user-service",
 		"users_count": h.userService.GetUsersCount(),
 	}
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }

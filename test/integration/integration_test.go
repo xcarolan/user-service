@@ -47,15 +47,15 @@ func makeRequest(server *httptest.Server, method, path string, body io.Reader) (
 	return client.Do(req)
 }
 
-// Helper to read response body
-//func readResponseBody(resp *http.Response) (string, error) {
-////	defer resp.Body.Close()
-////	body, err := io.ReadAll(resp.Body)
-////	if err != nil {
-////		return "", err
-////	}
-////	return string(body), nil
-////}
+// closeResponseBody is a helper to safely close response bodies in tests
+func closeResponseBody(t *testing.T, resp *http.Response) {
+	t.Helper()
+	if resp != nil && resp.Body != nil {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Error closing response body: %v", err)
+		}
+	}
+}
 
 func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 	server := createTestServer()
@@ -66,7 +66,7 @@ func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to make health request: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
@@ -88,7 +88,7 @@ func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to list users: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
@@ -105,7 +105,7 @@ func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get user: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
@@ -126,7 +126,7 @@ func TestIntegration_CompleteUserWorkflow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to make request: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("Expected status %d, got %d", http.StatusNotFound, resp.StatusCode)
@@ -143,7 +143,7 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to make request: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		expectedHeaders := map[string]string{
 			"Access-Control-Allow-Origin":  "*",
@@ -163,7 +163,7 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to make OPTIONS request: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status %d for OPTIONS, got %d", http.StatusOK, resp.StatusCode)
@@ -182,11 +182,11 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 			}
 
 			if resp.StatusCode == http.StatusTooManyRequests {
+				closeResponseBody(t, resp)
 				rateLimitHit = true
-				resp.Body.Close()
 				break
 			}
-			resp.Body.Close()
+			closeResponseBody(t, resp)
 
 			// Small delay to avoid overwhelming
 			time.Sleep(10 * time.Millisecond)
@@ -232,7 +232,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 				errors <- fmt.Errorf("goroutine %d failed: %v", goroutineID, err)
 				return
 			}
-			defer resp.Body.Close()
+			defer closeResponseBody(t, resp)
 
 			// Handle different status codes appropriately
 			switch resp.StatusCode {
@@ -337,7 +337,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to make request: %v", err)
 			}
-			defer resp.Body.Close()
+			defer closeResponseBody(t, resp)
 
 			if resp.StatusCode != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, resp.StatusCode)
@@ -366,7 +366,7 @@ func TestIntegration_ResponseFormat(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get user: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		var user models.User
 		if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
@@ -393,7 +393,7 @@ func TestIntegration_ResponseFormat(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get users: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		var response map[string]interface{}
 		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -433,7 +433,7 @@ func TestIntegration_Performance(t *testing.T) {
 			continue
 		}
 		if resp != nil {
-			resp.Body.Close()
+			closeResponseBody(t, resp)
 		}
 	}
 
@@ -448,19 +448,15 @@ func TestIntegration_Performance(t *testing.T) {
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
 			t.Logf("Request %d rate limited (expected)", i)
-			resp.Body.Close()
-			continue
-		}
-		if resp.StatusCode == http.StatusTooManyRequests {
-			t.Logf("Request %d rate limited (expected)", i)
-			resp.Body.Close()
+			closeResponseBody(t, resp)
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
+			closeResponseBody(t, resp)
 			t.Fatalf("Request %d returned status %d", i, resp.StatusCode)
 		}
-		resp.Body.Close()
+		closeResponseBody(t, resp)
 	}
 
 	duration := time.Since(start)
@@ -484,7 +480,7 @@ func TestIntegration_ServerLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Server not responding: %v", err)
 		}
-		resp.Body.Close()
+		defer closeResponseBody(t, resp)
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected healthy server, got status %d", resp.StatusCode)

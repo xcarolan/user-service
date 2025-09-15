@@ -22,10 +22,18 @@ func TestLoad(t *testing.T) {
 	}
 
 	// Test with environment variables
-	os.Setenv("PORT", ":9090")
-	os.Setenv("LOG_LEVEL", "debug")
-	os.Setenv("RATE_LIMIT_RPS", "100.0")
-	os.Setenv("RATE_LIMIT_BURST", "200")
+	if err := os.Setenv("PORT", ":9090"); err != nil {
+		t.Fatalf("Failed to set PORT: %v", err)
+	}
+	if err := os.Setenv("LOG_LEVEL", "debug"); err != nil {
+		t.Fatalf("Failed to set LOG_LEVEL: %v", err)
+	}
+	if err := os.Setenv("RATE_LIMIT_RPS", "100.0"); err != nil {
+		t.Fatalf("Failed to set RATE_LIMIT_RPS: %v", err)
+	}
+	if err := os.Setenv("RATE_LIMIT_BURST", "200"); err != nil {
+		t.Fatalf("Failed to set RATE_LIMIT_BURST: %v", err)
+	}
 
 	cfg = Load()
 	if cfg.Port != ":9090" {
@@ -42,8 +50,16 @@ func TestLoad(t *testing.T) {
 	}
 
 	// Clean up environment variables
-	os.Unsetenv("PORT")
-	os.Unsetenv("LOG_LEVEL")
-	os.Unsetenv("RATE_LIMIT_RPS")
-	os.Unsetenv("RATE_LIMIT_BURST")
+	if err := os.Unsetenv("PORT"); err != nil {
+		t.Logf("Warning: failed to unset PORT: %v", err)
+	}
+	if err := os.Unsetenv("LOG_LEVEL"); err != nil {
+		t.Logf("Warning: failed to unset LOG_LEVEL: %v", err)
+	}
+	if err := os.Unsetenv("RATE_LIMIT_RPS"); err != nil {
+		t.Logf("Warning: failed to unset RATE_LIMIT_RPS: %v", err)
+	}
+	if err := os.Unsetenv("RATE_LIMIT_BURST"); err != nil {
+		t.Logf("Warning: failed to unset RATE_LIMIT_BURST: %v", err)
+	}
 }
