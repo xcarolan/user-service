@@ -1,0 +1,100 @@
+# -----------------------------------------------------------------------------
+# Go build artifacts
+# -----------------------------------------------------------------------------
+# Object files, archives
+*.o
+*.a
+*.so
+*.dll
+
+# Test binaries
+*.test
+
+# Built executables
+*.exe
+*.out
+*.app
+
+# Go module/workspace junk (keep go.mod/go.sum, ignore local work files)
+go.work
+go.work.sum
+
+# -----------------------------------------------------------------------------
+# Project outputs
+# -----------------------------------------------------------------------------
+bin/
+build/
+dist/
+out/
+coverage/
+cover/
+tmp/
+.temp/
+*.pid
+
+# Common coverage/profile files
+coverage.txt
+coverage.out
+profile.out
+cpu.prof
+mem.prof
+block.prof
+mutex.prof
+trace.out
+*.pprof
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+log/
+
+# -----------------------------------------------------------------------------
+# Docker / Compose
+# -----------------------------------------------------------------------------
+# Local env and override files
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+**/docker-compose.override.yml
+*.local.yml
+**/*.local.yml
+
+# -----------------------------------------------------------------------------
+# IDE / Editor
+# -----------------------------------------------------------------------------
+# GoLand / IntelliJ
+.idea/
+# VS Code
+.vscode/
+# JetBrains Fleet
+.fleet/
+# Sublime / others
+*.sublime-project
+*.sublime-workspace
+
+# -----------------------------------------------------------------------------
+# OS / Misc
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# -----------------------------------------------------------------------------
+# Certificates/keys generated locally (avoid committing secrets)
+# -----------------------------------------------------------------------------
+*.pem
+*.key
+*.crt
+*.cert
+
+# -----------------------------------------------------------------------------
+# Optional: uncomment if you never vendor dependencies
+# -----------------------------------------------------------------------------
+# vendor/
