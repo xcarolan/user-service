@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"user-service/internal/config"
+	"user-service/internal/database"
 	"user-service/internal/handlers"
 	"user-service/internal/metrics"
 	"user-service/internal/middleware"
@@ -18,18 +19,28 @@ import (
 
 func main() {
 	// Setup structured logging
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Println("Starting user service...")
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	slog.Info("Starting user service...")
 
 	// Load configuration
 	cfg := config.Load()
 
+	// Initialize database connection
+	db, err := database.NewConnection(cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close(context.Background())
+
 	// Initialize metrics
 	metricsCollector := metrics.New(nil, nil)
-	log.Println("Metrics initialized")
+	slog.Info("Metrics initialized")
 
 	// Create service
-	userService := services.NewUserService(metricsCollector)
+	userService := services.NewUserService(db, metricsCollector)
 
 	// Setup routes with middleware
 	mux := setupRoutes(userService, metricsCollector, cfg)
@@ -46,10 +57,10 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Server starting on %s", server.Addr)
-		log.Printf("Metrics available at http://localhost%s/metrics", server.Addr)
+		slog.Info("Server starting", "address", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed to start: %v", err)
+			slog.Error("Server failed to start", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -59,7 +70,7 @@ func main() {
 
 	// Wait for shutdown signal
 	sig := <-quit
-	log.Printf("Received signal %v, shutting down gracefully...", sig)
+	slog.Info("Received signal, shutting down gracefully...", "signal", sig)
 
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -67,9 +78,9 @@ func main() {
 
 	// Attempt graceful shutdown
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		slog.Error("Server forced to shutdown", "error", err)
 	} else {
-		log.Println("Server shutdown complete")
+		slog.Info("Server shutdown complete")
 	}
 }
 
@@ -82,6 +93,7 @@ func setupRoutes(userService *services.UserService, metricsCollector *metrics.Me
 
 	// Apply middleware chain
 	var handler http.Handler = mux
+	handler = middleware.RequestID()(handler)
 	handler = middleware.Recovery(metricsCollector)(handler)
 	handler = middleware.CORS()(handler)
 	handler = middleware.RateLimit(cfg.GetRateLimiter(), metricsCollector)(handler)

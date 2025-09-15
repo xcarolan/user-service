@@ -12,10 +12,28 @@ services:
       - "8082:8080"
     networks:
       - monitoring
+      - db
     labels:
       - "prometheus.scrape=true"
       - "prometheus.port=8080"
       - "prometheus.path=/metrics"
+    depends_on:
+      - postgres
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: user_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - db
 
   # Prometheus - Metrics collection
   prometheus:
@@ -69,8 +87,11 @@ services:
 networks:
   monitoring:
     driver: bridge
+  db:
+    driver: bridge
 
 volumes:
   prometheus_data:
   grafana_data:
   alertmanager_data:
+  postgres_data:

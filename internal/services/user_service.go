@@ -1,47 +1,39 @@
 package services
 
 import (
+	"context"
 	"fmt"
-	"sync"
 
+	"github.com/jackc/pgx/v4"
+	"user-service/internal/database"
 	"user-service/internal/metrics"
 	"user-service/internal/models"
 )
 
 // UserService handles user-related business logic
 type UserService struct {
-	mu      sync.RWMutex
-	users   map[int]models.User
+	db      database.DBTX
 	metrics *metrics.Metrics
 }
 
-// NewUserService creates a new user service with initial data and metrics
-func NewUserService(metricsCollector *metrics.Metrics) *UserService {
-	service := &UserService{
-		users: map[int]models.User{
-			1: {ID: 1, Name: "John Doe", Email: "john@example.com"},
-			2: {ID: 2, Name: "Jane Smith", Email: "jane@example.com"},
-			3: {ID: 3, Name: "Bob Johnson", Email: "bob@example.com"},
-			4: {ID: 4, Name: "Sylvester Carolan", Email: "sly@example.com"},
-		},
+// NewUserService creates a new user service with a database connection and metrics
+func NewUserService(db database.DBTX, metricsCollector *metrics.Metrics) *UserService {
+	return &UserService{
+		db:      db,
 		metrics: metricsCollector,
 	}
-
-	// Initialize users count metric
-	service.metrics.SetUsersTotal(float64(len(service.users)))
-
-	return service
 }
 
 // GetUser retrieves a user by ID
 func (s *UserService) GetUser(id int) (models.User, error) {
-	s.mu.RLock()
-	user, exists := s.users[id]
-	s.mu.RUnlock()
-
-	if !exists {
-		s.metrics.RecordUserLookup("not_found")
-		return models.User{}, fmt.Errorf("user not found")
+	var user models.User
+	err := s.db.QueryRow(context.Background(), "SELECT id, name, email FROM users WHERE id = $1", id).Scan(&user.ID, &user.Name, &user.Email)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			s.metrics.RecordUserLookup("not_found")
+			return models.User{}, fmt.Errorf("user not found")
+		}
+		return models.User{}, err
 	}
 
 	s.metrics.RecordUserLookup("found")
@@ -49,23 +41,33 @@ func (s *UserService) GetUser(id int) (models.User, error) {
 }
 
 // ListUsers returns all users
-func (s *UserService) ListUsers() []models.User {
-	s.mu.RLock()
-	users := make([]models.User, 0, len(s.users))
-	for _, user := range s.users {
+func (s *UserService) ListUsers() ([]models.User, error) {
+	rows, err := s.db.Query(context.Background(), "SELECT id, name, email FROM users")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email); err != nil {
+			return nil, err
+		}
 		users = append(users, user)
 	}
-	s.mu.RUnlock()
 
-	return users
+	return users, nil
 }
 
 // GetUsersCount returns the current number of users
-func (s *UserService) GetUsersCount() int {
-	s.mu.RLock()
-	count := len(s.users)
-	s.mu.RUnlock()
-	return count
+func (s *UserService) GetUsersCount() (int, error) {
+	var count int
+	err := s.db.QueryRow(context.Background(), "SELECT COUNT(*) FROM users").Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 // AddUser adds a new user (for future use)
@@ -74,10 +76,10 @@ func (s *UserService) AddUser(user models.User) error {
 		return err
 	}
 
-	s.mu.Lock()
-	s.users[user.ID] = user
-	s.metrics.SetUsersTotal(float64(len(s.users)))
-	s.mu.Unlock()
+	_, err := s.db.Exec(context.Background(), "INSERT INTO users (name, email) VALUES ($1, $2)", user.Name, user.Email)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

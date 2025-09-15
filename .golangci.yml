@@ -1,0 +1,12 @@
+# Minimal configuration for golangcli-lint
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+
+run:
+  skip-dirs:
+    - .git
+    - vendor
+    - testdata

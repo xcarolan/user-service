@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,8 +18,17 @@ func Logging() func(http.Handler) http.Handler {
 			wrapper := &responseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 			next.ServeHTTP(wrapper, r)
 			duration := time.Since(start)
-			log.Printf("%s %s %d %v %s",
-				r.Method, r.URL.Path, wrapper.statusCode, duration, r.RemoteAddr)
+
+			requestID, _ := r.Context().Value(RequestIDKey).(string)
+
+			slog.Info("request completed",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", wrapper.statusCode,
+				"duration", duration,
+				"remote_addr", r.RemoteAddr,
+				"request_id", requestID,
+			)
 		})
 	}
 }
@@ -60,7 +69,7 @@ func RateLimit(limiter *rate.Limiter, metricsCollector *metrics.Metrics) func(ht
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !limiter.Allow() {
-				log.Printf("Rate limit exceeded for %s", r.RemoteAddr)
+				slog.Warn("Rate limit exceeded", "remote_addr", r.RemoteAddr)
 				metricsCollector.RecordRateLimitHit()
 				http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 				return
@@ -76,7 +85,7 @@ func CORS() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
 
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusOK)
@@ -94,7 +103,8 @@ func Recovery(metricsCollector *metrics.Metrics) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
-					log.Printf("Panic recovered: %v", err)
+					requestID, _ := r.Context().Value(RequestIDKey).(string)
+					slog.Error("Panic recovered", "error", err, "request_id", requestID)
 					metricsCollector.RecordPanicRecovery()
 					metricsCollector.RecordError("panic", r.URL.Path)
 					http.Error(w, "internal server error", http.StatusInternalServerError)

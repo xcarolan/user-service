@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	Port      string
-	LogLevel  string
-	RateLimit struct {
+	Port        string
+	LogLevel    string
+	DatabaseURL string
+	RateLimit   struct {
 		RequestsPerSecond float64
 		BurstSize         int
 	}
@@ -18,8 +19,9 @@ type Config struct {
 
 func Load() *Config {
 	cfg := &Config{
-		Port:     getEnv("PORT", ":8080"),
-		LogLevel: getEnv("LOG_LEVEL", "info"),
+		Port:        getEnv("PORT", ":8080"),
+		LogLevel:    getEnv("LOG_LEVEL", "info"),
+		DatabaseURL: getEnv("DATABASE_URL", "postgres://user:password@postgres:5432/user_service?sslmode=disable"),
 	}
 
 	// Rate limiting configuration
