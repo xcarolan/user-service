@@ -32,28 +32,28 @@ func TestUserService(t *testing.T) {
 
 	t.Run("list users", func(t *testing.T) {
 		users := userService.ListUsers()
-		if len(users) != 3 {
+		if len(users) != 4 {
 			t.Errorf("expected 3 users, got %d", len(users))
 		}
 	})
 
 	t.Run("get users count", func(t *testing.T) {
 		count := userService.GetUsersCount()
-		if count != 3 {
+		if count != 4 {
 			t.Errorf("expected 3 users, got %d", count)
 		}
 	})
 
 	t.Run("add user", func(t *testing.T) {
-		user := models.User{ID: 4, Name: "Test User", Email: "test@user.com"}
+		user := models.User{ID: 5, Name: "Test User", Email: "test@user.com"}
 		err := userService.AddUser(user)
 		if err != nil {
 			t.Errorf("unexpected error adding user: %v", err)
 		}
 
 		count := userService.GetUsersCount()
-		if count != 4 {
-			t.Errorf("expected 4 users, got %d", count)
+		if count != 5 {
+			t.Errorf("expected 5 users, got %d", count)
 		}
 	})
 }

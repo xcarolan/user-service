@@ -3,7 +3,7 @@
 # Choose container engine: docker | podman | auto
 ENGINE ?= auto
 
-COMPOSE_FILE ?= deployments/docker/docker-compose.yml
+COMPOSE_FILE ?= docker-compose.yml
 
 # Detect availability
 HAVE_DOCKER := $(shell command -v docker >/dev/null 2>&1 && echo yes || echo no)

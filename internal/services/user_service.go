@@ -22,6 +22,7 @@ func NewUserService(metricsCollector *metrics.Metrics) *UserService {
 			1: {ID: 1, Name: "John Doe", Email: "john@example.com"},
 			2: {ID: 2, Name: "Jane Smith", Email: "jane@example.com"},
 			3: {ID: 3, Name: "Bob Johnson", Email: "bob@example.com"},
+			4: {ID: 4, Name: "Sylvester Carolan", Email: "sly@example.com"},
 		},
 		metrics: metricsCollector,
 	}
