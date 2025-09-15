@@ -23,12 +23,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5  # Updated to v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4  # Updated to v4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -57,7 +57,8 @@ jobs:
         run: |
           COVERAGE=$(go tool cover -func=coverage-combined.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+          # Use awk instead of bc for comparison
+          if awk "BEGIN {exit !($COVERAGE < 70)}"; then
             echo "Coverage ${COVERAGE}% is below 70% threshold"
             exit 1
           fi
@@ -78,7 +79,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5  # Updated to v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -86,7 +87,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.4.0
-          skip-cache: 'true'
+          skip-cache: true
           args: --timeout=5m
 
   security:
@@ -97,7 +98,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5  # Updated to v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -106,10 +107,9 @@ jobs:
           # Use Go's official vulnerability scanner
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
-      
+          
           # Optional: Add basic static analysis
           go vet ./...
-
 
   build:
     name: Build
@@ -120,13 +120,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5  # Updated to v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Build binary
+        run: make build
+
+      - name: Verify build
         run: |
-          CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/user-service .
+          ls -la bin/
+          file bin/user-service
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
