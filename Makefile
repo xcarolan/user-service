@@ -57,6 +57,28 @@ PROM_PORT ?= 9090
 GRAFANA_PORT ?= 3001
 ALERT_PORT ?= 9093
 
+# Docker variables
+DOCKER_IMAGE ?= user-service
+DOCKER_TAG ?= latest
+DOCKER_REGISTRY ?= ghcr.io/$(shell git config --get remote.origin.url | sed 's/.*github.com[:/]\([^.]*\).*/\1/')
+
+# Docker targets
+docker-build:
+	@echo "Building Docker image..."
+	@docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+docker-run:
+	@echo "Running Docker container..."
+	@docker run --rm -p 8082:8082 $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+docker-push:
+	@echo "Pushing Docker image..."
+	@docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+	@docker push $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+
+docker-clean:
+	@echo "Cleaning Docker images..."
+	@docker rmi $(DOCKER_IMAGE):$(DOCKER_TAG) 2>/dev/null || true
 # Build the Go application
 build:
 	@echo "Building user service..."
