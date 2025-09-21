@@ -30,7 +30,11 @@ func (m *MockDBTX) Query(ctx context.Context, sql string, args ...interface{}) (
 	allArgs = append(allArgs, ctx, sql)
 	allArgs = append(allArgs, args...)
 	ret := m.Called(allArgs...)
-	return ret.Get(0).(*MockRows), ret.Error(1)
+	var r0 pgx.Rows
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*MockRows)
+	}
+	return r0, ret.Error(1)
 }
 
 // QueryRow mocks base method.

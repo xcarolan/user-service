@@ -63,3 +63,29 @@ func TestLoad(t *testing.T) {
 		t.Logf("Warning: failed to unset RATE_LIMIT_BURST: %v", err)
 	}
 }
+
+func TestGetRateLimiter(t *testing.T) {
+	cfg := &Config{
+		RateLimit: struct {
+			RequestsPerSecond float64
+			BurstSize         int
+		}{
+			RequestsPerSecond: 5.0,
+			BurstSize:         10,
+		},
+	}
+
+	limiter := cfg.GetRateLimiter()
+	if limiter == nil {
+		t.Error("expected non-nil rate limiter")
+	}
+
+	// Test that the limiter has the correct limits
+	if limiter.Limit() != 5.0 {
+		t.Errorf("expected limit to be 5.0, got %f", limiter.Limit())
+	}
+
+	if limiter.Burst() != 10 {
+		t.Errorf("expected burst to be 10, got %d", limiter.Burst())
+	}
+}

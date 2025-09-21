@@ -1,2 +1,2 @@
-GET http://localhost:8080/users
+GET http://localhost:8082/users
 Accept: application/json

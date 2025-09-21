@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,6 +44,39 @@ func TestHealthHandler(t *testing.T) {
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
+	}
+
+	// Assert that the mock expectations were met
+	dbMock.AssertExpectations(t)
+}
+
+func TestHealthHandlerError(t *testing.T) {
+	// Create a mock for DBTX
+	dbMock := &mocks.MockDBTX{}
+
+	// Expect GetUsersCount to fail with an error
+	mockRow := &mocks.MockRow{}
+	mockRow.On("Scan", mock.Anything).Return(errors.New("database error"))
+	dbMock.On("QueryRow", context.Background(), "SELECT COUNT(*) FROM users", mock.Anything).Return(mockRow)
+
+	reg := prometheus.NewRegistry()
+	metricsCollector := metrics.New(reg, reg)
+	userService := services.NewUserService(dbMock, metricsCollector)
+	healthHandler := NewHealthHandler(userService)
+
+	req, err := http.NewRequest("GET", "/health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	h := http.HandlerFunc(healthHandler.Health)
+
+	h.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
 	}
 
 	// Assert that the mock expectations were met

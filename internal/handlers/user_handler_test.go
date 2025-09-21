@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -127,6 +128,33 @@ func TestUserHandler(t *testing.T) {
 		if status := rr.Code; status != http.StatusOK {
 			t.Errorf("handler returned wrong status code: got %v want %v",
 				status, http.StatusOK)
+		}
+		dbMock.AssertExpectations(t)
+	})
+
+	t.Run("list users database error", func(t *testing.T) {
+		// Create a mock for DBTX
+		dbMock := &mocks.MockDBTX{}
+
+		// Setup expectations for database error
+		dbMock.On("Query", context.Background(), "SELECT id, name, email FROM users").Return(nil, errors.New("database error"))
+
+		userService := services.NewUserService(dbMock, metricsCollector)
+		userHandler := NewUserHandler(userService)
+
+		req, err := http.NewRequest("GET", "/users", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		h := http.HandlerFunc(userHandler.ListUsers)
+
+		h.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusInternalServerError {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusInternalServerError)
 		}
 		dbMock.AssertExpectations(t)
 	})
